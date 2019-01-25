@@ -15,11 +15,9 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 public class Server {
     public Server() {
     }
-
     public void run() throws Exception {
         EventLoopGroup mainGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
-
         try {
             ServerBootstrap b = new ServerBootstrap();
             b.group(mainGroup, workerGroup)
@@ -27,10 +25,11 @@ public class Server {
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         protected void initChannel(SocketChannel socketChannel) throws Exception {
                             socketChannel.pipeline().addLast(
-                                    new ObjectDecoder(5 * 1024 * 1024, ClassResolvers.cacheDisabled(null)),
                                     new ObjectEncoder(),
-                                    new MainHandler()
-                            );
+                                    new OutboundHandler(),
+                                    new ObjectDecoder(20 * 1024 * 1024, ClassResolvers.cacheDisabled(null)),
+                                    new InboundHandler()
+                                    );
                         }
                     })
                     .option(ChannelOption.SO_BACKLOG, 128)
@@ -45,14 +44,7 @@ public class Server {
     }
 
     public static void main(String[] args) throws Exception {
+        Class.forName("org.sqlite.JDBC").getDeclaredConstructor().newInstance();
         new Server().run();
-        try{
-            Class.forName("com.mysql.jdbc.Driver").getDeclaredConstructor().newInstance();
-//            System.out.println("Connection succesfull!");
-        }
-        catch(Exception ex){
-            System.out.println("Connection to DataBase failed...");
-            System.out.println(ex);
-        }
     }
 }
