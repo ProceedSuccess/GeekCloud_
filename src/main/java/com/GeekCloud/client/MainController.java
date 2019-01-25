@@ -8,9 +8,11 @@ import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.control.Button;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -21,33 +23,46 @@ import java.util.ResourceBundle;
 public class MainController implements Initializable {
     @FXML
     TextField tfFileName;
-
     @FXML
     TextField tfLoadFile;
-
     @FXML
     ListView<String> clientFilesList;
-
     @FXML
     ListView<String> serverFilesList;
-
+    @FXML
+    Button download;
+    @FXML
+    Button upload;
+   private Network network;
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        Network.start();
+        network = AuthController.getNetwork();
+        System.out.println("initialize main scene");
         Thread t = new Thread(() -> {
             try {
                 while (true) {
                     AbstractMessage am = Network.readObject();
+//                    if (am instanceof FileMessage && ((FileMessage) am).getOnePartLength() != 0){
+//                        System.out.println(((FileMessage) am).getOnePartLength());
+//                    }
                     if (am instanceof FileMessage) {
+                        if (am == null) {
+                            System.out.println("file catched");
+                            continue;}
                         FileMessage fm = (FileMessage) am;
-                        Files.write(Paths.get("client_storage\\" + fm.getFilename()), fm.getData(), StandardOpenOption.CREATE);
+                        FileOutputStream fous = new FileOutputStream("client_storage\\" + ((FileMessage) fm).getFilename(),true);;
+                        byte[] b =  fm.getData();
+                        fous.write(b);
+                      //  fous.close();
+//                        Files.write(Paths.get("client_storage\\"
+//                                + fm.getFilename()), fm.getData(), StandardOpenOption.CREATE);
                         refreshLocalFilesList();
                     }
                 }
             } catch (ClassNotFoundException | IOException e) {
                 e.printStackTrace();
             } finally {
-                Network.stop();
+              //  network.stop();
             }
         });
         t.setDaemon(true);
@@ -59,20 +74,20 @@ public class MainController implements Initializable {
     }
 
     public void pressOnDownloadBtn(ActionEvent actionEvent) {
-        if (tfFileName.getLength() > 0) {
+        if (tfFileName.getLength() > 0 && download.isArmed()) {
             Network.sendMsg(new FileRequest(tfFileName.getText()));
+            System.out.println("file request sent");
             tfFileName.clear();
-
         }
     }
     public void pressOnUploadBtn(ActionEvent actionEvent) throws IOException {
-        if (tfLoadFile.getLength() > 0) {
-            Network.sendMsg(new FileMessage(Paths.get("client_storage\\" + tfLoadFile.getText())));
+        if (tfLoadFile.getLength() > 0 && upload.isArmed()) {
+            Network.sendFileMsg(new FileMessage(Paths.get("client_storage\\" + tfLoadFile.getText())));
+         //   System.out.println(" file message sent");
             tfLoadFile.clear();
             refreshServerFilesList();
         }
     }
-
     public void refreshLocalFilesList() {
         if (Platform.isFxApplicationThread()) {
             try {

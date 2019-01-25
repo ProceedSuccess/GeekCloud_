@@ -1,69 +1,73 @@
 package com.GeekCloud.client;
 
-import javafx.event.EventHandler;
+import com.GeekCloud.common.AbstractMessage;
+import com.GeekCloud.common.AuthorizationMessage;
+import com.GeekCloud.common.PermissionMessage;
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
-import javafx.scene.input.MouseEvent;
 
+import java.io.IOException;
 import java.net.URL;
-import java.sql.*;
 import java.util.ResourceBundle;
 
 public class LogInController implements Initializable {
-    private static Connection con;
-    private static Statement stmt;
-    private static ResultSet rs;
-
-    String queryLogin = "SELECT login FROM Users WHERE login ";
-    String queryPassword = "select password from Users where";
-
+    protected static Network network;
     @FXML
     TextField login;
     @FXML
     TextField password;
+    @FXML
+    Button ok;
+
+    String log;
+    String pass;
+
+    CreateNewWindow createNewWindow;
 
     @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        try{
-            stmt = con.createStatement();
-        con = DriverManager.getConnection( "jdbc:mysql://localhost:3306/test");}
-
-        catch (SQLException sqlEx) {
-            sqlEx.printStackTrace();
-        }finally {
-            try { con.close(); } catch(SQLException se) { se.printStackTrace(); }
-            try { stmt.close(); } catch(SQLException se) { se.printStackTrace(); }
-        }
-
-        login.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
-            @Override
-            public void handle(MouseEvent mouseEvent) {
-                loginIsValid(login.getText());
+    public void initialize(URL location, ResourceBundle resources)  {
+        createNewWindow = new CreateNewWindow();
+        network = AuthController.getNetwork();
+        // слушаем сервер на предмет получения ответа на запрос авторизации
+        Thread t = new Thread(() -> {
+            while(true){
+                try {
+                    AbstractMessage am = network.readObject();
+                    if (am instanceof PermissionMessage) {
+                        System.out.println("pm catched!");
+                        if(((PermissionMessage) am).getAccess() == true) {
+                            openMainScene();
+                            break;
+                        }else System.out.println("access denied");
+                    }
+                } catch (ClassNotFoundException | IOException e) {
+                    e.printStackTrace();}
             }
         });
-        password.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
-            @Override
-            public void handle(MouseEvent mouseEvent) {
-                passwordIsValid(password.getText());
-            }
+        t.setDaemon(true);
+        t.start();
+    }
+//   открываем главную часть приложения
+    public void openMainScene() {
+        Platform.runLater(() -> {
+            createNewWindow.create
+                    ("/com/GeekCloud/main.fxml",
+                            "Choose file to download/upload:",
+                            600,800);
         });
     }
 
-    public boolean loginIsValid(String login){
-        try{
-            rs = stmt.executeQuery(queryLogin + "= " + login );
-        }catch (SQLException e){
-            e.printStackTrace();
+    public void sendLoginPassword(ActionEvent actionEvent){
+        if (login.getLength() > 0 && password.getLength() >0 && ok.isArmed()) {
+            log = login.getText();
+            pass = password.getText();
+            AuthorizationMessage am = new AuthorizationMessage(log,pass);
+            System.out.println(log + " " + pass);
+            network.sendMsg(am);
         }
-        if (login.equals(rs.toString())){
-            System.out.println("ok");
-            return true;
-        }
-        else return false;
     }
-    public boolean passwordIsValid(String password){
-        return false;
-    }
-
 }
